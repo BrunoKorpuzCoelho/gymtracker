@@ -1,0 +1,93 @@
+{% extends 'workouts/base.html' %}
+{% load static %}
+{% block title %}Plan — GymTracker{% endblock %}
+
+{% block content %}
+<div class="page-container">
+
+    <!-- Header -->
+    <div class="page-header">
+        <span class="page-label">WORKOUT PLAN</span>
+        <h1 class="page-title">Hey, {{ user.username }}</h1>
+    </div>
+
+    <!-- Today's quick action -->
+    <div class="today-card">
+        <div class="today-date">
+            <span class="today-weekday">{{ today|date:"l" }}</span>
+            <span class="today-full">{{ today|date:"M d, Y" }}</span>
+        </div>
+
+        {% if today_plan %}
+        <a href="{% url 'workout' today_plan.id %}" class="btn btn-primary btn-start">
+            <span class="btn-start-label">Start Today's Workout</span>
+            <span class="btn-start-plan" style="color: {{ today_plan.color }}">{{ today_plan.name }}</span>
+        </a>
+        {% else %}
+        <div class="today-rest">
+            <span>🛌</span> Rest day — or pick a workout below
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Calendar -->
+    <div class="calendar-section">
+        <div class="calendar-nav">
+            <a href="?year={{ prev_year }}&month={{ prev_month }}" class="cal-arrow">&larr;</a>
+            <span class="cal-month">{{ month_name }} {{ year }}</span>
+            <a href="?year={{ next_year }}&month={{ next_month }}" class="cal-arrow">&rarr;</a>
+        </div>
+
+        <div class="calendar-grid">
+            <div class="cal-head">Mon</div>
+            <div class="cal-head">Tue</div>
+            <div class="cal-head">Wed</div>
+            <div class="cal-head">Thu</div>
+            <div class="cal-head">Fri</div>
+            <div class="cal-head cal-weekend">Sat</div>
+            <div class="cal-head cal-weekend">Sun</div>
+
+            {% for week in month_days %}
+                {% for day in week %}
+                    {% if day == 0 %}
+                        <div class="cal-day cal-empty"></div>
+                    {% else %}
+                        <div class="cal-day {% if day == today.day and month == today.month and year == today.year %}cal-today{% endif %} {% if day in session_map %}cal-done{% endif %}"
+                             {% if day in session_map %}style="--dot-color: {{ session_map|dictsort:"0"|first }}"{% endif %}>
+                            <span class="cal-day-num">{{ day }}</span>
+                            {% if day in session_map %}
+                                <span class="cal-dot" style="background: {{ session_map.day.color|default:'#2A9D8F' }}"></span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Workout plans list -->
+    <div class="plans-section">
+        <h2 class="section-title">All Workouts</h2>
+        <p class="section-hint">Tap to start any workout, even on rest days</p>
+
+        <div class="plan-list">
+            {% for plan in plans %}
+            <a href="{% url 'workout' plan.id %}" class="plan-card" style="--plan-color: {{ plan.color }}">
+                <div class="plan-dot" style="background: {{ plan.color }}"></div>
+                <div class="plan-info">
+                    <span class="plan-name">{{ plan.name }}</span>
+                    <span class="plan-day">
+                        {% if plan.day_of_week == 0 %}Monday{% elif plan.day_of_week == 1 %}Tuesday{% elif plan.day_of_week == 2 %}Wednesday{% elif plan.day_of_week == 3 %}Thursday{% elif plan.day_of_week == 4 %}Friday{% endif %}
+                        {% if plan.tag %} · {{ plan.tag }}{% endif %}
+                    </span>
+                </div>
+                <svg class="plan-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,335 @@
+{% extends 'workouts/base.html' %}
+{% load static %}
+{% block title %}Progress — GymTracker{% endblock %}
+
+{% block content %}
+<div class="page-container">
+
+    <!-- Header -->
+    <div class="page-header">
+        <span class="page-label">DASHBOARD</span>
+        <h1 class="page-title">Progress</h1>
+    </div>
+
+    <!-- Stats cards -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <span class="stat-value">{{ total_sessions }}</span>
+            <span class="stat-label">Total Sessions</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ sessions_this_week }}/5</span>
+            <span class="stat-label">This Week</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ streak }}🔥</span>
+            <span class="stat-label">Streak</span>
+        </div>
+    </div>
+
+    <!-- Body weight section -->
+    <div class="dash-section">
+        <h2 class="section-title">Body Weight</h2>
+
+        <div class="weight-log-row">
+            <div class="weight-current">
+                {% if latest_weight %}
+                    <span class="weight-big">{{ latest_weight.weight }}kg</span>
+                    <span class="weight-date">{{ latest_weight.date|date:"M d" }}</span>
+                {% else %}
+                    <span class="weight-big">—</span>
+                    <span class="weight-date">No data yet</span>
+                {% endif %}
+                {% if target_weight %}
+                    <span class="weight-target">Target: {{ target_weight }}kg</span>
+                {% endif %}
+            </div>
+            <div class="weight-input-row">
+                <input type="number" step="0.1" min="20" max="300" class="form-input"
+                       id="weightInput" placeholder="Today's weight (kg)">
+                <button class="btn btn-sm" onclick="logWeight()">Log</button>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="weightChart" height="200"></canvas>
+        </div>
+    </div>
+
+    <!-- Exercise progression -->
+    <div class="dash-section">
+        <h2 class="section-title">Strength Progress</h2>
+        <p class="section-hint">Weight lifted on Set 1 over time</p>
+
+        <div class="chart-container">
+            <canvas id="strengthChart" height="250"></canvas>
+        </div>
+
+        <div class="exercise-legend" id="exerciseLegend"></div>
+    </div>
+
+    <!-- Profile settings -->
+    <div class="dash-section">
+        <h2 class="section-title">Profile</h2>
+        <div class="profile-form">
+            <div class="input-row">
+                <div class="input-group">
+                    <label>Height (cm)</label>
+                    <input type="number" min="100" max="250" class="form-input"
+                           id="heightInput" value="{{ profile.height_cm|default:'' }}" placeholder="175">
+                </div>
+                <div class="input-group">
+                    <label>Target weight (kg)</label>
+                    <input type="number" step="0.1" min="30" max="250" class="form-input"
+                           id="targetWeightInput" value="{{ profile.target_weight|default:'' }}" placeholder="80">
+                </div>
+            </div>
+            <button class="btn btn-sm" onclick="saveProfile()">Save Profile</button>
+        </div>
+    </div>
+
+</div>
+
+{{ weight_data|json_script:"weightData" }}
+{{ exercise_progress|json_script:"exerciseProgress" }}
+
+<script>
+// --- Charts (vanilla Canvas) ---
+const weightData = JSON.parse(document.getElementById('weightData').textContent);
+const exerciseProgress = JSON.parse(document.getElementById('exerciseProgress').textContent);
+
+// Color palette for exercise lines
+const COLORS = ['#E63946', '#457B9D', '#2A9D8F', '#E9C46A', '#9B5DE5', '#F77F00', '#06D6A0', '#EF476F'];
+
+document.addEventListener('DOMContentLoaded', () => {
+    drawWeightChart();
+    drawStrengthChart();
+});
+
+function drawWeightChart() {
+    const canvas = document.getElementById('weightChart');
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width;
+    const h = rect.height;
+    const pad = { top: 20, right: 15, bottom: 35, left: 45 };
+
+    if (weightData.length < 2) {
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '14px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('Log at least 2 weigh-ins to see the chart', w / 2, h / 2);
+        return;
+    }
+
+    const weights = weightData.map(d => d.weight);
+    const minW = Math.min(...weights) - 1;
+    const maxW = Math.max(...weights) + 1;
+    const xScale = (w - pad.left - pad.right) / (weightData.length - 1);
+    const yScale = (h - pad.top - pad.bottom) / (maxW - minW);
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    const steps = 5;
+    for (let i = 0; i <= steps; i++) {
+        const val = minW + (maxW - minW) * (i / steps);
+        const y = h - pad.bottom - (val - minW) * yScale;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '10px system-ui';
+        ctx.textAlign = 'right';
+        ctx.fillText(val.toFixed(1), pad.left - 6, y + 3);
+    }
+
+    // Date labels
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'center';
+    const labelEvery = Math.max(1, Math.floor(weightData.length / 6));
+    weightData.forEach((d, i) => {
+        if (i % labelEvery === 0 || i === weightData.length - 1) {
+            const x = pad.left + i * xScale;
+            const label = d.date.substring(5);  // MM-DD
+            ctx.fillText(label, x, h - pad.bottom + 18);
+        }
+    });
+
+    // Line
+    ctx.beginPath();
+    ctx.strokeStyle = '#2A9D8F';
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    weightData.forEach((d, i) => {
+        const x = pad.left + i * xScale;
+        const y = h - pad.bottom - (d.weight - minW) * yScale;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Dots
+    weightData.forEach((d, i) => {
+        const x = pad.left + i * xScale;
+        const y = h - pad.bottom - (d.weight - minW) * yScale;
+        ctx.beginPath();
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#2A9D8F';
+        ctx.fill();
+    });
+
+    // Target line
+    const targetInput = document.getElementById('targetWeightInput');
+    const target = parseFloat(targetInput.value);
+    if (target && target >= minW && target <= maxW) {
+        const ty = h - pad.bottom - (target - minW) * yScale;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = '#E9C46A88';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, ty);
+        ctx.lineTo(w - pad.right, ty);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#E9C46A';
+        ctx.font = '10px system-ui';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Target: ${target}kg`, pad.left + 4, ty - 6);
+    }
+}
+
+function drawStrengthChart() {
+    const canvas = document.getElementById('strengthChart');
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width;
+    const h = rect.height;
+    const pad = { top: 20, right: 15, bottom: 35, left: 45 };
+
+    const entries = Object.entries(exerciseProgress);
+    if (entries.length === 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '14px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('Complete workouts to see strength progress', w / 2, h / 2);
+        return;
+    }
+
+    // Find global min/max weight
+    let allWeights = [];
+    let allDates = new Set();
+    entries.forEach(([_, data]) => {
+        data.forEach(d => {
+            allWeights.push(d.weight);
+            allDates.add(d.date);
+        });
+    });
+
+    const sortedDates = [...allDates].sort();
+    const minW = Math.max(0, Math.min(...allWeights) - 5);
+    const maxW = Math.max(...allWeights) + 5;
+    const xScale = sortedDates.length > 1 ? (w - pad.left - pad.right) / (sortedDates.length - 1) : 0;
+    const yScale = (h - pad.top - pad.bottom) / (maxW - minW || 1);
+
+    // Grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 5; i++) {
+        const val = minW + (maxW - minW) * (i / 5);
+        const y = h - pad.bottom - (val - minW) * yScale;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '10px system-ui';
+        ctx.textAlign = 'right';
+        ctx.fillText(val.toFixed(0) + 'kg', pad.left - 6, y + 3);
+    }
+
+    // Draw each exercise
+    const legend = document.getElementById('exerciseLegend');
+    legend.innerHTML = '';
+    entries.forEach(([name, data], idx) => {
+        const color = COLORS[idx % COLORS.length];
+
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+
+        data.forEach((d, i) => {
+            const dateIdx = sortedDates.indexOf(d.date);
+            const x = pad.left + dateIdx * xScale;
+            const y = h - pad.bottom - (d.weight - minW) * yScale;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Legend
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.innerHTML = `<span class="legend-dot" style="background:${color}"></span>${name}`;
+        legend.appendChild(item);
+    });
+}
+
+// --- Log body weight ---
+async function logWeight() {
+    const input = document.getElementById('weightInput');
+    const weight = parseFloat(input.value);
+    if (!weight || weight < 20 || weight > 300) {
+        showToast('Enter a valid weight (20-300 kg)', 'warning');
+        return;
+    }
+    try {
+        await apiFetch('/api/log-weight/', { weight: weight });
+        showToast('Weight logged ✓', 'success');
+        setTimeout(() => location.reload(), 800);
+    } catch (err) {
+        showToast(`Error: ${err.message}`, 'error');
+    }
+}
+
+// --- Save profile ---
+async function saveProfile() {
+    const height = document.getElementById('heightInput').value;
+    const target = document.getElementById('targetWeightInput').value;
+    try {
+        await apiFetch('/api/update-profile/', {
+            height_cm: height || null,
+            target_weight: target || null,
+        });
+        showToast('Profile saved ✓', 'success');
+    } catch (err) {
+        showToast(`Error: ${err.message}`, 'error');
+    }
+}
+
+// --- Toast ---
+function showToast(msg, type) {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 2500);
+}
+</script>
+{% endblock %}
