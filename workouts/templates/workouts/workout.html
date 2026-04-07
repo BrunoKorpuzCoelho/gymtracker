@@ -49,6 +49,11 @@
                     <span class="exercise-target">{{ exercise.target_muscle }}</span>
                 </div>
                 <div class="exercise-status" id="status-{{ exercise.id }}">
+                    {% if exercise.demo_url %}
+                    <button type="button" class="demo-btn"
+                            onclick="event.stopPropagation(); openDemo('{{ exercise.name|escapejs }}', '{{ exercise.demo_url|escapejs }}')"
+                            title="How to do this exercise">ℹ</button>
+                    {% endif %}
                     <span class="sets-label">{{ exercise.sets_reps }}</span>
                 </div>
             </div>
@@ -137,6 +142,16 @@
         </button>
     </div>
 
+</div>
+
+<!-- Demo modal -->
+<div class="demo-modal-overlay" id="demoOverlay" onclick="closeDemo()">
+    <div class="demo-modal" onclick="event.stopPropagation()">
+        <button class="demo-modal-close" onclick="closeDemo()">&times;</button>
+        <h3 class="demo-modal-title" id="demoTitle"></h3>
+        <div class="demo-modal-media" id="demoMedia"></div>
+        <p class="demo-modal-caption" id="demoCaption"></p>
+    </div>
 </div>
 
 <!-- Data injection (safe — uses Django json_script) -->
@@ -316,6 +331,58 @@ function showToast(msg, type) {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 300);
     }, 2500);
+}
+
+// --- Exercise demo modal ---
+let demoTimer = null;
+
+function openDemo(name, demoUrl) {
+    document.getElementById('demoTitle').textContent = name;
+    const mediaEl = document.getElementById('demoMedia');
+    const captionEl = document.getElementById('demoCaption');
+    mediaEl.innerHTML = '';
+    captionEl.textContent = '';
+
+    if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+
+    const url = demoUrl.trim();
+
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        // YouTube embed
+        const iframe = document.createElement('iframe');
+        iframe.src = url;
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.allowFullscreen = true;
+        mediaEl.appendChild(iframe);
+    } else {
+        // Image slideshow (comma-separated URLs)
+        const frames = url.split(',').map(s => s.trim()).filter(Boolean);
+        if (frames.length === 0) return;
+
+        const img = document.createElement('img');
+        img.src = frames[0];
+        img.alt = name;
+        mediaEl.appendChild(img);
+
+        if (frames.length > 1) {
+            let idx = 0;
+            captionEl.textContent = 'Animating movement...';
+            demoTimer = setInterval(() => {
+                idx = (idx + 1) % frames.length;
+                img.src = frames[idx];
+            }, 700);
+        }
+    }
+
+    document.getElementById('demoOverlay').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDemo() {
+    document.getElementById('demoOverlay').classList.remove('active');
+    document.body.style.overflow = '';
+    if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+    document.getElementById('demoMedia').innerHTML = '';
 }
 </script>
 {% endblock %}

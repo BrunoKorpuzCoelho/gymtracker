@@ -625,3 +625,112 @@ input[type=number]::-webkit-outer-spin-button {
     margin: 0;
 }
 input[type=number] { -moz-appearance: textfield; }
+
+/* === Demo info button === */
+.demo-btn {
+    background: none;
+    border: 1.5px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.6);
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+    margin-right: 8px;
+    font-style: normal;
+}
+.demo-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(42,157,143,0.1);
+}
+
+/* === Demo modal === */
+.demo-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+}
+.demo-modal-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+.demo-modal {
+    background: var(--bg-card);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.08);
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+    position: relative;
+    transform: translateY(20px);
+    transition: transform 0.25s;
+}
+.demo-modal-overlay.active .demo-modal {
+    transform: translateY(0);
+}
+.demo-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+}
+.demo-modal-close:hover { color: var(--text); }
+.demo-modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 14px;
+    padding-right: 30px;
+}
+.demo-modal-media {
+    width: 100%;
+    background: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.demo-modal-media img {
+    width: 100%;
+    height: auto;
+    display: block;
+    max-height: 320px;
+    object-fit: contain;
+}
+.demo-modal-media iframe {
+    width: 100%;
+    height: 230px;
+    border: none;
+    display: block;
+}
+.demo-modal-caption {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-dimmer);
+    text-align: center;
+    min-height: 16px;
+}

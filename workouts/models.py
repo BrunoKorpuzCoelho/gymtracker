@@ -42,6 +42,10 @@ class ExerciseTemplate(models.Model):
         help_text='Rep scheme per set, e.g. "12 / 10 / 8" or "max / max / max"'
     )
     tip = models.TextField(blank=True, default='')
+    demo_url = models.TextField(
+        blank=True, default='',
+        help_text='Comma-separated image URLs (for slideshow) or a YouTube embed URL'
+    )
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
