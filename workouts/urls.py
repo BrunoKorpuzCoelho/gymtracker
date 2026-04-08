@@ -12,6 +12,7 @@ urlpatterns = [
     path('workout/<int:plan_id>/', views.workout_view, name='workout'),
     path('workout/<int:plan_id>/<str:session_date>/', views.workout_view, name='workout_date'),
     path('dashboard/', views.dashboard_view, name='dashboard'),
+    path('exercises/', views.exercise_progress_view, name='exercise_progress'),
 
     # API endpoints
     path('api/log-set/', views.save_exercise_log, name='api_log_set'),

@@ -1,0 +1,347 @@
+{% extends 'workouts/base.html' %}
+{% load static %}
+{% block title %}Exercises — GymTracker{% endblock %}
+
+{% block content %}
+<div class="page-container">
+
+    <!-- Header -->
+    <div class="page-header">
+        <span class="page-label">PROGRESS</span>
+        <h1 class="page-title">Exercises</h1>
+    </div>
+
+    {% if plans %}
+
+    <!-- Exercise Picker -->
+    <div class="ex-picker-card">
+        <label class="ex-picker-label" for="exerciseSelect">Select exercise</label>
+        <select id="exerciseSelect" class="form-input ex-select" onchange="loadExercise()">
+            <option value="">— choose an exercise —</option>
+            {% for plan_name, exercises in plans.items %}
+            <optgroup label="{{ plan_name }}">
+                {% for ex in exercises %}
+                <option value="{{ ex.id }}">{{ ex.name }}</option>
+                {% endfor %}
+            </optgroup>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Time Range Pills -->
+    <div class="range-pills">
+        <button class="range-pill active" onclick="setRange(this, 30)">30d</button>
+        <button class="range-pill" onclick="setRange(this, 60)">60d</button>
+        <button class="range-pill" onclick="setRange(this, 90)">90d</button>
+        <button class="range-pill" onclick="setRange(this, 180)">6m</button>
+        <button class="range-pill" onclick="setRange(this, 0)">All</button>
+    </div>
+
+    <!-- Chart Section (hidden until exercise selected) -->
+    <div class="dash-section" id="chartSection" style="display:none">
+        <h2 class="section-title" id="exerciseTitle">—</h2>
+
+        <!-- Stats -->
+        <div class="ex-stats-row" id="exStats"></div>
+
+        <!-- Metric toggle -->
+        <div class="metric-toggle">
+            <button class="metric-btn active" id="btnWeight" onclick="switchMetric('weight')">Max weight</button>
+            <button class="metric-btn" id="btnVolume" onclick="switchMetric('volume')">Volume (kg×reps)</button>
+        </div>
+
+        <!-- Chart -->
+        <div class="chart-container" style="margin-top:16px">
+            <canvas id="exerciseChart" height="230"></canvas>
+        </div>
+
+        <!-- Difficulty legend -->
+        <div class="diff-legend">
+            <span class="diff-legend-dot" style="background:#2A9D8F"></span>Easy
+            <span class="diff-legend-dot" style="background:#E9C46A; margin-left:12px"></span>Medium
+            <span class="diff-legend-dot" style="background:#E63946; margin-left:12px"></span>Hard
+        </div>
+    </div>
+
+    <!-- Empty state -->
+    <div class="ex-empty" id="exEmpty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
+            <path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>
+        </svg>
+        <p>Select an exercise above to see your progression over time</p>
+    </div>
+
+    {% else %}
+    <div class="ex-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
+            <path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>
+        </svg>
+        <p>Complete some workouts first to see your exercise progression</p>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Tooltip element -->
+<div class="ex-tooltip" id="exTooltip"></div>
+
+<script>
+let currentDays = 30;
+let currentData = null;
+let currentMetric = 'weight';
+
+const DIFF_COLOR = { easy: '#2A9D8F', medium: '#E9C46A', hard: '#E63946' };
+
+function setRange(btn, days) {
+    document.querySelectorAll('.range-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentDays = days;
+    const selId = document.getElementById('exerciseSelect').value;
+    if (selId) loadExercise();
+}
+
+function switchMetric(metric) {
+    currentMetric = metric;
+    document.getElementById('btnWeight').classList.toggle('active', metric === 'weight');
+    document.getElementById('btnVolume').classList.toggle('active', metric === 'volume');
+    if (currentData) drawChart(currentData);
+}
+
+async function loadExercise() {
+    const selId = document.getElementById('exerciseSelect').value;
+    if (!selId) return;
+
+    const url = `/api/exercise-history/${selId}/?days=${currentDays}`;
+    try {
+        const resp = await fetch(url, { credentials: 'same-origin' });
+        if (!resp.ok) throw new Error('Network error');
+        const json = await resp.json();
+
+        currentData = processData(json.history);
+
+        document.getElementById('exerciseTitle').textContent = json.exercise;
+        document.getElementById('chartSection').style.display = 'block';
+        document.getElementById('exEmpty').style.display = 'none';
+
+        renderStats(currentData);
+        drawChart(currentData);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function processData(history) {
+    const byDate = {};
+    history.forEach(log => {
+        if (!byDate[log.date]) {
+            byDate[log.date] = { weights: [], volumes: [], difficulties: [] };
+        }
+        byDate[log.date].weights.push(log.weight);
+        byDate[log.date].volumes.push(log.weight * log.reps);
+        byDate[log.date].difficulties.push(log.difficulty);
+    });
+
+    return Object.entries(byDate)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([d, v]) => ({
+            date: d,
+            maxWeight: Math.max(...v.weights),
+            volume: v.volumes.reduce((a, b) => a + b, 0),
+            difficulties: v.difficulties,
+        }));
+}
+
+function renderStats(data) {
+    if (!data.length) {
+        document.getElementById('exStats').innerHTML = '';
+        return;
+    }
+    const allW = data.map(d => d.maxWeight);
+    const prVal = Math.max(...allW);
+    const prDate = data.find(d => d.maxWeight === prVal)?.date?.substring(5) || '';
+    const first = allW[0];
+    const last = allW[allW.length - 1];
+    const diff = last - first;
+    const sign = diff >= 0 ? '+' : '';
+
+    document.getElementById('exStats').innerHTML = `
+        <div class="ex-stat">
+            <span class="ex-stat-val">${prVal}kg</span>
+            <span class="ex-stat-lbl">PR (${prDate})</span>
+        </div>
+        <div class="ex-stat">
+            <span class="ex-stat-val">${data.length}</span>
+            <span class="ex-stat-lbl">Sessions</span>
+        </div>
+        <div class="ex-stat">
+            <span class="ex-stat-val" style="color:${diff >= 0 ? 'var(--accent)' : 'var(--danger)'}">${sign}${diff.toFixed(1)}kg</span>
+            <span class="ex-stat-lbl">Period change</span>
+        </div>
+    `;
+}
+
+function drawChart(data) {
+    const canvas = document.getElementById('exerciseChart');
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width;
+    const h = rect.height;
+    const pad = { top: 28, right: 16, bottom: 42, left: 50 };
+
+    if (!data.length) {
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '14px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('No data for this period', w / 2, h / 2);
+        return;
+    }
+
+    const values = currentMetric === 'weight'
+        ? data.map(d => d.maxWeight)
+        : data.map(d => d.volume);
+
+    const n = data.length;
+    const minV = Math.max(0, Math.min(...values) * 0.92);
+    const maxV = Math.max(...values) * 1.06;
+    const xScale = n > 1 ? (w - pad.left - pad.right) / (n - 1) : 0;
+    const yScale = (h - pad.top - pad.bottom) / (maxV - minV || 1);
+
+    const toX = i => pad.left + i * xScale;
+    const toY = v => h - pad.bottom - (v - minV) * yScale;
+
+    // Grid lines + Y labels
+    const steps = 4;
+    for (let i = 0; i <= steps; i++) {
+        const val = minV + (maxV - minV) * (i / steps);
+        const y = toY(val);
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '10px system-ui';
+        ctx.textAlign = 'right';
+        const lbl = currentMetric === 'weight'
+            ? val.toFixed(0) + 'kg'
+            : val >= 1000 ? (val / 1000).toFixed(1) + 't' : val.toFixed(0);
+        ctx.fillText(lbl, pad.left - 6, y + 3);
+    }
+
+    // X date labels
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'center';
+    const labelEvery = Math.max(1, Math.floor(n / 6));
+    data.forEach((d, i) => {
+        if (i % labelEvery === 0 || i === n - 1) {
+            ctx.fillText(d.date.substring(5), toX(i), h - pad.bottom + 16);
+        }
+    });
+
+    // Gradient fill under the line
+    const grad = ctx.createLinearGradient(0, pad.top, 0, h - pad.bottom);
+    grad.addColorStop(0, 'rgba(42,157,143,0.22)');
+    grad.addColorStop(1, 'rgba(42,157,143,0)');
+    ctx.beginPath();
+    data.forEach((d, i) => {
+        const x = toX(i), y = toY(values[i]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.lineTo(toX(n - 1), h - pad.bottom);
+    ctx.lineTo(toX(0), h - pad.bottom);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Main line
+    ctx.beginPath();
+    ctx.strokeStyle = '#2A9D8F';
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    data.forEach((d, i) => {
+        if (i === 0) ctx.moveTo(toX(i), toY(values[i]));
+        else ctx.lineTo(toX(i), toY(values[i]));
+    });
+    ctx.stroke();
+
+    // Dots colored by dominant difficulty
+    if (n <= 80) {
+        data.forEach((d, i) => {
+            const counts = { easy: 0, medium: 0, hard: 0 };
+            d.difficulties.forEach(df => { if (counts[df] !== undefined) counts[df]++; });
+            const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+
+            ctx.beginPath();
+            ctx.arc(toX(i), toY(values[i]), 4.5, 0, Math.PI * 2);
+            ctx.fillStyle = DIFF_COLOR[dominant] || '#2A9D8F';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        });
+    }
+
+    // PR marker
+    const prIdx = values.indexOf(Math.max(...values));
+    if (prIdx >= 0) {
+        const px = toX(prIdx);
+        const py = toY(values[prIdx]);
+        ctx.fillStyle = '#E9C46A';
+        ctx.font = 'bold 10px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('PR', px, py - 12);
+    }
+
+    // Vertical reference line on hover
+    setupHover(canvas, data, values, toX, toY, h, pad);
+}
+
+function setupHover(canvas, data, values, toX, toY, h, pad) {
+    const tooltip = document.getElementById('exTooltip');
+
+    function nearest(cssX) {
+        const rect = canvas.getBoundingClientRect();
+        const relX = cssX - rect.left;
+        const xScale = (rect.width - pad.left - pad.right) / Math.max(1, data.length - 1);
+        const idx = Math.round((relX - pad.left) / xScale);
+        return Math.max(0, Math.min(data.length - 1, idx));
+    }
+
+    function show(clientX, clientY) {
+        const i = nearest(clientX);
+        const d = data[i];
+        if (!d) { tooltip.style.display = 'none'; return; }
+        const val = currentMetric === 'weight'
+            ? `<strong>${d.maxWeight}kg</strong>`
+            : `<strong>${d.volume.toFixed(0)}kg</strong> vol`;
+        const sets = d.difficulties.length;
+        tooltip.innerHTML = `${d.date}<br>${val} · ${sets} set${sets !== 1 ? 's' : ''}`;
+        tooltip.style.display = 'block';
+        tooltip.style.left = (clientX + 14) + 'px';
+        tooltip.style.top = (clientY + window.scrollY - 48) + 'px';
+    }
+
+    function hide() { tooltip.style.display = 'none'; }
+
+    canvas.onmousemove = e => show(e.clientX, e.clientY);
+    canvas.onmouseleave = hide;
+    canvas.ontouchmove = e => { e.preventDefault(); const t = e.touches[0]; show(t.clientX, t.clientY); };
+    canvas.ontouchend = hide;
+}
+
+let resizeTimer;
+window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (currentData) drawChart(currentData); }, 150);
+});
+</script>
+{% endblock %}

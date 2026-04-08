@@ -457,12 +457,24 @@ def update_profile(request):
 @require_GET
 def exercise_history(request, exercise_id):
     exercise = get_object_or_404(ExerciseTemplate, pk=exercise_id)
+
+    try:
+        days = int(request.GET.get('days', 0))
+    except (ValueError, TypeError):
+        days = 0
+
+    qs = ExerciseLog.objects.filter(
+        session__user=request.user, exercise_template=exercise
+    )
+    if days > 0:
+        from_date = date.today() - timedelta(days=days)
+        qs = qs.filter(session__date__gte=from_date)
+
     logs = (
-        ExerciseLog.objects
-        .filter(session__user=request.user, exercise_template=exercise)
+        qs
         .order_by('session__date', 'set_number')
         .select_related('session')
-        .values('session__date', 'set_number', 'weight', 'reps', 'difficulty')[:200]
+        .values('session__date', 'set_number', 'weight', 'reps', 'difficulty')
     )
     data = [
         {
@@ -475,3 +487,36 @@ def exercise_history(request, exercise_id):
         for l in logs
     ]
     return JsonResponse({'exercise': exercise.name, 'history': data})
+
+
+# ---------------------------------------------------------------------------
+# Exercise progression page
+# ---------------------------------------------------------------------------
+
+@login_required
+@ensure_csrf_cookie
+def exercise_progress_view(request):
+    user = request.user
+
+    logged_ids = (
+        ExerciseLog.objects
+        .filter(session__user=user)
+        .values_list('exercise_template_id', flat=True)
+        .distinct()
+    )
+
+    exercises = (
+        ExerciseTemplate.objects
+        .filter(id__in=logged_ids)
+        .select_related('workout_plan')
+        .order_by('workout_plan__display_order', 'display_order')
+    )
+
+    plans = {}
+    for ex in exercises:
+        plan_name = ex.workout_plan.name if ex.workout_plan else 'Other'
+        if plan_name not in plans:
+            plans[plan_name] = []
+        plans[plan_name].append({'id': ex.id, 'name': ex.name})
+
+    return render(request, 'workouts/exercises.html', {'plans': plans})
