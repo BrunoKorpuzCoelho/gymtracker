@@ -49,11 +49,9 @@
                     <span class="exercise-target">{{ exercise.target_muscle }}</span>
                 </div>
                 <div class="exercise-status" id="status-{{ exercise.id }}">
-                    {% if exercise.demo_url %}
                     <button type="button" class="demo-btn"
                             onclick="event.stopPropagation(); openDemo('{{ exercise.name|escapejs }}', '{{ exercise.demo_url|escapejs }}')"
-                            title="How to do this exercise">ℹ</button>
-                    {% endif %}
+                            title="How to do this exercise">▶</button>
                     <span class="sets-label">{{ exercise.sets_reps }}</span>
                 </div>
             </div>
@@ -346,6 +344,8 @@ function openDemo(name, demoUrl) {
     if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
 
     const url = demoUrl.trim();
+
+    if (!url) return;
 
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
         // YouTube embed
