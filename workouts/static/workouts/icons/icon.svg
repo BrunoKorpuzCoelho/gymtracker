@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="100" fill="#0a0a0f"/>
+  <g fill="none" stroke="#a855f7" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
+    <!-- dumbbell bar -->
+    <line x1="160" y1="256" x2="352" y2="256"/>
+    <!-- left weight outer -->
+    <rect x="80" y="196" width="32" height="120" rx="8" fill="#a855f7" stroke="none"/>
+    <!-- left weight inner -->
+    <rect x="112" y="216" width="48" height="80" rx="6" fill="#7c3aed" stroke="none"/>
+    <!-- right weight outer -->
+    <rect x="400" y="196" width="32" height="120" rx="8" fill="#a855f7" stroke="none"/>
+    <!-- right weight inner -->
+    <rect x="352" y="216" width="48" height="80" rx="6" fill="#7c3aed" stroke="none"/>
+    <!-- bar -->
+    <rect x="158" y="244" width="196" height="24" rx="8" fill="#6d28d9" stroke="none"/>
+  </g>
+</svg>

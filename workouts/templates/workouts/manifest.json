@@ -1,0 +1,18 @@
+{% load static %}{
+  "name": "GymTracker",
+  "short_name": "GymTracker",
+  "description": "Track your gym workouts",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "icons": [
+    {
+      "src": "{% static 'workouts/icons/icon.svg' %}",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

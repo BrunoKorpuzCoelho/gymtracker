@@ -4,8 +4,11 @@ from . import views
 urlpatterns = [
     # Auth
     path('login/', views.login_view, name='login'),
-    path('register/', views.register_view, name='register'),
     path('logout/', views.logout_view, name='logout'),
+
+    # PWA
+    path('manifest.json', views.manifest_json, name='manifest'),
+    path('sw.js', views.service_worker, name='service_worker'),
 
     # Pages
     path('', views.calendar_view, name='calendar'),

@@ -24,18 +24,15 @@ from .forms import RegisterForm, LoginForm, BodyWeightForm, ProfileForm
 # ---------------------------------------------------------------------------
 
 def register_view(request):
-    if request.user.is_authenticated:
-        return redirect('calendar')
-    if request.method == 'POST':
-        form = RegisterForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            UserProfile.objects.get_or_create(user=user)
-            login(request, user)
-            return redirect('calendar')
-    else:
-        form = RegisterForm()
-    return render(request, 'workouts/register.html', {'form': form})
+    return redirect('login')
+
+
+def manifest_json(request):
+    return render(request, 'workouts/manifest.json', content_type='application/manifest+json')
+
+
+def service_worker(request):
+    return render(request, 'workouts/sw.js', content_type='application/javascript')
 
 
 def login_view(request):
